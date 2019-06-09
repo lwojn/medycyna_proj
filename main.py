@@ -4,6 +4,7 @@ from sklearn.feature_selection import SelectKBest
 from sklearn.neighbors.nearest_centroid import NearestCentroid
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import cross_validate
+from sklearn.preprocessing import normalize
 from itertools import chain
 import matplotlib.pyplot as plt
 import random
@@ -26,6 +27,7 @@ def convert_boolean(value):
 
 def split_input_and_output_data(frame, input_columns, output_columns):
     return (frame.drop(columns=output_columns), frame.drop(columns=input_columns))
+
 
 class CvSplitter(object):
     def split(self, X, y, groups):
@@ -76,7 +78,8 @@ def cross_validate_5x2(dataset, target, classifier):
     return average(chain(*scores))
 
 
-def create_cross_validation_plot(dataset, target, classifier, features_list, filename, plot_title):
+def create_cross_validation_plot(dataset, target, classifier, features_list, filename, plot_title,
+                                 normalized_dataset):
     def enumerate_datasets_with_features_increment(dataset, features_list):
         for i in range(len(features_list)):
             yield dataset.filter([label for label in features_list[:i + 1]])
@@ -85,12 +88,22 @@ def create_cross_validation_plot(dataset, target, classifier, features_list, fil
         cross_validate_5x2(x.values, target.values.ravel(), classifier) * 100
         for x in enumerate_datasets_with_features_increment(dataset, features_list)
     ]
-    plt.plot([_ + 1 for _ in range(len(validation_results))], validation_results)
+    validation_results_for_normalized = [
+        cross_validate_5x2(x.values, target.values.ravel(), classifier) * 100
+        for x in enumerate_datasets_with_features_increment(normalized_dataset, features_list)
+    ]
+    plt.plot([_ + 1 for _ in range(len(validation_results))],
+             validation_results,
+             label='nieznormalizowane')
+    plt.plot([_ + 1 for _ in range(len(validation_results))],
+             validation_results_for_normalized,
+             label='znormalizowane')
     plt.title(plot_title)
     plt.xlabel('Ilość cech branych pod uwagę')
     plt.ylabel('Skuteczność w %')
     plt.ylim((0, 101))
     plt.grid(True)
+    plt.legend()
     plt.savefig(filename)
     plt.clf()
 
@@ -99,66 +112,34 @@ ranking = rank_features(dataset, target)
 print('Ranking cech:', ranking)
 labels_sorted = [label for label, _ in ranking]
 
-create_cross_validation_plot(
-    dataset,
-    target,
+normalized_dataset = dataset.copy()
+normalized_dataset[dataset.columns] = normalize(dataset.values)
+
+filenames = [
+    'NM_euclidean', 'NM_manhattan', '1NN_euclidean', '1NN_manhattan', '5NN_euclidean',
+    '5NN_manhattan', '10NN_euclidean', '10NN_manhattan'
+]
+titles = [
+    'Najmniejsza średnia (z metryką euklidesową)',
+    'Najmniejsza średnia (z metryką miejską)',
+    'Najbliższy sąsiad (z metryką euklidesową)',
+    'Najbliższy sąsiad (z metryką miejską)',
+    'k-najbliższych sąsiadów (z metryką euklidesową, k = 5)',
+    'k-najbliższych sąsiadów (z metryką miejską, k = 5)',
+    'k-najbliższych sąsiadów (z metryką euklidesową, k = 10)',
+    'k-najbliższych sąsiadów (z metryką miejską, k = 10)',
+]
+clfs = [
     NearestCentroid(),
-    labels_sorted,
-    filename='NM_euclidean',
-    plot_title='Najmniejsza średnia (z metryką euklidesową)')
-
-create_cross_validation_plot(
-    dataset,
-    target,
     NearestCentroid(metric='manhattan'),
-    labels_sorted,
-    filename='NM_manhattan',
-    plot_title='Najmniejsza średnia (z metryką miejską)')
-
-create_cross_validation_plot(
-    dataset,
-    target,
     KNeighborsClassifier(n_neighbors=1, metric='euclidean'),
-    labels_sorted,
-    filename='1NN_euclidean',
-    plot_title='Najbliższy sąsiad (z metryką euklidesową)')
-
-create_cross_validation_plot(
-    dataset,
-    target,
     KNeighborsClassifier(n_neighbors=1, metric='manhattan'),
-    labels_sorted,
-    filename='1NN_manhattan',
-    plot_title='Najbliższy sąsiad (z metryką miejską)')
-
-create_cross_validation_plot(
-    dataset,
-    target,
     KNeighborsClassifier(n_neighbors=5, metric='euclidean'),
-    labels_sorted,
-    filename='5NN_euclidean',
-    plot_title='k-najbliższych sąsiadów (z metryką euklidesową, k = 5)')
-
-create_cross_validation_plot(
-    dataset,
-    target,
     KNeighborsClassifier(n_neighbors=5, metric='manhattan'),
-    labels_sorted,
-    filename='5NN_manhattan',
-    plot_title='k-najbliższych sąsiadów (z metryką miejską, k = 5)')
-
-create_cross_validation_plot(
-    dataset,
-    target,
     KNeighborsClassifier(n_neighbors=10, metric='euclidean'),
-    labels_sorted,
-    filename='10NN_euclidean',
-    plot_title='k-najbliższych sąsiadów (z metryką euklidesową, k = 10)')
-
-create_cross_validation_plot(
-    dataset,
-    target,
     KNeighborsClassifier(n_neighbors=10, metric='manhattan'),
-    labels_sorted,
-    filename='10NN_manhattan',
-    plot_title='k-najbliższych sąsiadów (z metryką miejską, k = 10)')
+]
+
+for filename, title, clf in zip(filenames, titles, clfs):
+    create_cross_validation_plot(dataset, target, clf, labels_sorted, filename, title,
+                                 normalized_dataset)
