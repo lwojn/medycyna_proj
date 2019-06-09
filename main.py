@@ -6,6 +6,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import cross_validate
 from itertools import chain
 import matplotlib.pyplot as plt
+import random
 
 
 def average(iterable):
@@ -25,6 +26,20 @@ def convert_boolean(value):
 
 def split_input_and_output_data(frame, input_columns, output_columns):
     return (frame.drop(columns=output_columns), frame.drop(columns=input_columns))
+
+class CvSplitter(object):
+    def split(self, X, y, groups):
+        dataset_length = X.shape[0]
+        indices = [i for i in range(dataset_length)]
+        for i in indices:
+            random_index = random.randrange(0, dataset_length)
+            indices[i], indices[random_index] = indices[random_index], indices[i]
+        partition_index = dataset_length // 2
+        yield indices[:partition_index], indices[partition_index:]
+        yield indices[partition_index:], indices[:partition_index]
+
+    def get_n_splits(self, X, y, groups):
+        return 2
 
 
 column_names = [
@@ -56,7 +71,7 @@ def rank_features(dataset, target):
 def cross_validate_5x2(dataset, target, classifier):
     scores = [
         x['test_score']
-        for x in (cross_validate(classifier, dataset, target, cv=2) for _ in range(5))
+        for x in (cross_validate(classifier, dataset, target, cv=CvSplitter()) for _ in range(5))
     ]
     return average(chain(*scores))
 
@@ -74,7 +89,7 @@ def create_cross_validation_plot(dataset, target, classifier, features_list, fil
     plt.title(plot_title)
     plt.xlabel('Ilość cech branych pod uwagę')
     plt.ylabel('Skuteczność w %')
-    plt.ylim((0, 100))
+    plt.ylim((0, 101))
     plt.grid(True)
     plt.savefig(filename)
     plt.clf()
