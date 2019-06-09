@@ -1,0 +1,6 @@
+[style]
+based_on_style = chromium
+indent_width = 4
+blank_line_before_nested_class_or_def = false
+column_limit = 100
+
