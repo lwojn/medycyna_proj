@@ -9,6 +9,11 @@ from itertools import chain
 import matplotlib.pyplot as plt
 import random
 
+HEALTHY = 0.0
+INFLAMMATION_OF_BLADER = 1.0
+NEPHRITIS = 2.0
+BOTH = 3.0
+
 
 def average(iterable):
     size = 0
@@ -27,6 +32,27 @@ def convert_boolean(value):
 
 def split_input_and_output_data(frame, input_columns, output_columns):
     return (frame.drop(columns=output_columns), frame.drop(columns=input_columns))
+
+
+def merge_diagnosis_row_into_class(row):
+    inflammation, nephritis = row
+    if inflammation == 0.0:
+        if nephritis == 0.0:
+            return HEALTHY
+        else:
+            return NEPHRITIS
+    else:
+        if nephritis == 0.0:
+            return INFLAMMATION_OF_BLADER
+        else:
+            return BOTH
+
+
+def compose_diagnosis_data_into_classes(diagnosis):
+    classes_column = numpy.array(
+        list(map(merge_diagnosis_row_into_class, zip(diagnosis.inflammation, diagnosis.nephritis))))
+    result = diagnosis.assign(class_=classes_column)
+    return result.drop(columns=[column for column in result.columns if column != 'class_'])
 
 
 class CvSplitter(object):
@@ -56,12 +82,13 @@ csv_frame = pandas.read_csv(
     'diagnosis.data',
     delim_whitespace=True,
     names=column_names,
-    usecols=column_names[:-1],
     encoding='UTF-16',
     converters=converters)
 
-dataset, target = split_input_and_output_data(
-    csv_frame, input_columns=csv_frame.columns[:-1], output_columns=csv_frame.columns[-1:])
+dataset, diagnosis = split_input_and_output_data(
+    csv_frame, input_columns=csv_frame.columns[:-2], output_columns=csv_frame.columns[-2:])
+
+target = compose_diagnosis_data_into_classes(diagnosis)
 
 
 def rank_features(dataset, target):
@@ -98,6 +125,10 @@ def create_cross_validation_plot(dataset, target, classifier, features_list, fil
     plt.plot([_ + 1 for _ in range(len(validation_results))],
              validation_results_for_normalized,
              label='znormalizowane')
+    print('Wyniki dla', plot_title)
+    print('nieznormalizowane:', validation_results)
+    print('znormalizowane:', validation_results_for_normalized)
+    print()
     plt.title(plot_title)
     plt.xlabel('Ilość cech branych pod uwagę')
     plt.ylabel('Skuteczność w %')
